@@ -1,9 +1,9 @@
-from typing import Tuple
-
 import torch
 import torch.nn as nn
-from decoder import Decoder
-from encoder import Encoder
+import torch.nn.init as init
+
+from models.decoder import Decoder
+from models.encoder import Encoder
 
 
 class SequenceToSequence(nn.Module):
@@ -17,8 +17,9 @@ class SequenceToSequence(nn.Module):
 
         super(SequenceToSequence, self).__init__()
         self.encoder: Encoder = encoder
-        self.decoder: decoder = decoder
+        self.decoder: Decoder = decoder
         self.device: torch.device = device
+        self._init_weights()
         return None
 
     def forward(
@@ -38,7 +39,6 @@ class SequenceToSequence(nn.Module):
         target_sentence_vocab_length: int = self.decoder.fc_out.out_features
 
         # A tensor to store decoder outputs.
-        # Output: (batch_size, target_sentence_length, target_language_vocab_length)
         output: torch.Tensor = torch.zeros(
             size=(batch_size, target_sentence_length, target_sentence_vocab_length),
             device=self.device,
@@ -49,7 +49,7 @@ class SequenceToSequence(nn.Module):
         # Cell: (num_layers, batch_size, hidden_dim)
         hidden_layer: torch.Tensor
         cell_layer: torch.Tensor
-        hidden_layer, cell_layer = self.encoder(tokenized_source_sentence)
+        (hidden_layer, cell_layer) = self.encoder(tokenized_source_sentence)
 
         # First input to the decoder is the <Start Of Sequence> token,
         # we get it from the tokenized_target_sentence first token.
@@ -79,10 +79,30 @@ class SequenceToSequence(nn.Module):
                     shape=(batch_size, 1)
                 )
                 if teacher_forcing
-                else decoder_output.argmax(1)
+                else decoder_output.argmax(1).reshape(shape=(batch_size, 1))
             )
 
         return output
+
+    def _init_weights(self) -> None:
+        for m in self.modules():
+            if isinstance(m, nn.Embedding):
+                init.xavier_uniform_(m.weight)
+            elif isinstance(m, nn.LSTM):
+                for name, param in m.named_parameters():
+                    if "weight_ih" in name:
+                        init.xavier_uniform_(param.data)
+                    elif "weight_hh" in name:
+                        init.orthogonal_(param.data)
+                    elif "bias" in name:
+                        param.data.fill_(0)
+                        n = param.size(0)
+                        param.data[n // 4 : n // 2].fill_(1)
+            elif isinstance(m, nn.Linear):
+                init.xavier_uniform_(m.weight)
+                if m.bias is not None:
+                    init.zeros_(m.bias)
+        return None
 
 
 if __name__ == "__main__":
@@ -130,4 +150,4 @@ if __name__ == "__main__":
     print("Source Input Shape: ", tokenized_source_input.shape)
     print("Target Input Shape: ", tokenized_target_input.shape)
     print("Output Shape: ", output.shape)
-    print("Device used: ", torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+    print("Device used: ", output.device)

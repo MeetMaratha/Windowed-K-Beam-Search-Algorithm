@@ -65,7 +65,7 @@ if __name__ == "__main__":
     embedding_dim: int = 1024
     num_layers: int = 2
     hidden_dim: int = 1024
-    vocab_size: int = 2048
+    vocab_size: int = 5
     input_sentnece_dim: int = 512
     decoder: Decoder = Decoder(
         output_dim=vocab_size,
@@ -86,3 +86,4 @@ if __name__ == "__main__":
     print("Prediction size: ", prediction.shape)
     print("Hidden layer shape: ", hidden.shape)
     print("Cell layer shape:", cell.shape)
+    print("Output: ", prediction)
